@@ -55,12 +55,191 @@ const DEFAULT_MESSAGES = [
   '記録を守って！',
 ]
 
+// ===================================================
+// ランキングタブのコンポーネント
+// s       = 現在のテーマの色設定
+// userId  = ログイン中のユーザーID（未ログインはnull）
+// ===================================================
+function RankingTab({ s, userId }: { s: Theme; userId: string | null }) {
+  // ranking = ランキングデータの配列（Supabaseから取得）
+  const [ranking, setRanking] = useState<any[]>([])
+  // loading = データを取得中かどうか
+  const [loading, setLoading] = useState(true)
+  // myRank  = 自分の順位（数字）
+  const [myRank, setMyRank] = useState<number | null>(null)
+
+  useEffect(() => {
+    const load = async () => {
+      // Supabaseのrankingビューから best_streak（最長記録）の降順（大きい順）で取得
+      const { data } = await supabase
+        .from('ranking')
+        .select('*')
+        .order('best_streak', { ascending: false })
+        .limit(100) // 上位100人まで表示
+
+      if (data) {
+        setRanking(data)
+        // localStorageに保存されたusernameで自分を特定
+        const myUsername = localStorage.getItem('sz_username') || ''
+        if (myUsername) {
+          const myIdx = data.findIndex((r: any) => r.username === myUsername)
+          if (myIdx !== -1) setMyRank(myIdx + 1)
+        }
+      }
+      setLoading(false)
+    }
+    load()
+  }, [userId])
+
+  const glowStyle = { textShadow: `0 0 10px ${s.accent}` }
+  const cardStyle: React.CSSProperties = {
+    background: s.card,
+    border: `1px solid ${s.border}`,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  }
+
+  // localStorageから自分のusernameを取得（ランキングで自分を強調表示するため）
+  const myUsername = localStorage.getItem('sz_username') || ''
+
+  // メダル絵文字（1位=金、2位=銀、3位=銅）
+  const medal = (rank: number) => {
+    if (rank === 1) return '🥇'
+    if (rank === 2) return '🥈'
+    if (rank === 3) return '🥉'
+    return null
+  }
+
+  if (loading) return (
+    <div style={{ textAlign: 'center', color: s.sub, padding: 40, fontSize: 12, letterSpacing: 2 }}>
+      LOADING...
+    </div>
+  )
+
+  return (
+    <div>
+      {/* ヘッダーカード：ランキングの説明と自分の順位 */}
+      <div style={{ ...cardStyle, textAlign: 'center' }}>
+        <div style={{ fontSize: 9, color: s.sub, letterSpacing: 4, marginBottom: 8 }}>
+          GLOBAL RANKING
+        </div>
+        <div style={{ fontSize: 11, color: s.sub }}>
+          基準：最長連続記録 // {ranking.length} USERS
+        </div>
+        {/* 自分の順位を表示（usernameがある場合のみ） */}
+        {myRank && (
+          <div style={{ marginTop: 12, fontSize: 13, color: s.accent, ...glowStyle }}>
+            あなたの順位：{myRank}位
+          </div>
+        )}
+        {/* ログイン済みだがusernameがない場合の案内 */}
+        {userId && !myUsername && (
+          <div style={{ marginTop: 12, fontSize: 11, color: '#ff6688' }}>
+            ※ ランキングに参加するにはSYS設定でユーザー名を設定してください
+          </div>
+        )}
+        {/* 未ログインの場合の案内 */}
+        {!userId && (
+          <div style={{ marginTop: 12, fontSize: 11, color: s.sub }}>
+            ※ ランキングに参加するにはログインが必要です
+          </div>
+        )}
+      </div>
+
+      {/* ランキングリスト */}
+      {ranking.length === 0 ? (
+        <div style={{ ...cardStyle, textAlign: 'center', color: s.sub, fontSize: 12 }}>
+          // NO DATA YET
+        </div>
+      ) : (
+        <div style={cardStyle}>
+          {ranking.map((r, i) => {
+            const rank = i + 1
+            // 自分のエントリーかどうか（usernameで判定）
+            const isMe = myUsername !== '' && r.username === myUsername
+            return (
+              <div key={r.user_number} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '10px 8px',
+                borderBottom: `1px solid ${s.border}`,
+                // 自分の行は背景色を変えて強調
+                background: isMe ? s.accent + '11' : 'transparent',
+                borderRadius: isMe ? 8 : 0,
+              }}>
+
+                {/* 順位番号 or メダル絵文字 */}
+                <div style={{ width: 28, textAlign: 'center', fontSize: 14, flexShrink: 0 }}>
+                  {medal(rank) || (
+                    <span style={{ color: s.sub, fontSize: 11 }}>{rank}</span>
+                  )}
+                </div>
+
+                {/* キャラクター画像（設定している場合のみ表示） */}
+                {r.char_image && (
+                  <img
+                    src={r.char_image}
+                    style={{
+                      width: 32, height: 32, borderRadius: '50%',
+                      objectFit: 'cover', border: `1px solid ${s.border}`,
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+
+                {/* ユーザー名と登録番号 */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 13,
+                    color: isMe ? s.accent : s.text,
+                    fontWeight: isMe ? 700 : 400,
+                    ...(isMe ? glowStyle : {}),
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis', // 長い名前は「...」で省略
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {r.username}
+                    {isMe && (
+                      <span style={{ fontSize: 10, marginLeft: 6, color: s.accent }}>← YOU</span>
+                    )}
+                  </div>
+                  {/* 登録番号（No.1から順番に振られる） */}
+                  <div style={{ fontSize: 9, color: s.sub, marginTop: 2 }}>
+                    No.{r.user_number}
+                  </div>
+                </div>
+
+                {/* 最長記録と現在のストリーク */}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 16, color: s.accent, ...glowStyle }}>
+                    {r.best_streak}
+                    <span style={{ fontSize: 10, color: s.sub }}> DAYS</span>
+                  </div>
+                  <div style={{ fontSize: 9, color: s.sub, marginTop: 2 }}>
+                    現在: {r.current_streak}日
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ===================================================
+// メインコンポーネント
+// ===================================================
 export default function Zinyoku({ userId, onLoginRequest }: { userId: string | null; onLoginRequest?: () => void }) {
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => (localStorage.getItem('sz_theme') as ThemeKey) || 'cyber')
   const [startDate, setStartDate] = useState(() => localStorage.getItem('sz_start') || new Date().toISOString())
   const [goal, setGoal] = useState(() => Number(localStorage.getItem('sz_goal') || 10))
   const [records, setRecords] = useState<Rec[]>(() => JSON.parse(localStorage.getItem('sz_records') || '[]'))
-  const [tab, setTab] = useState<'home' | 'calendar' | 'data' | 'title' | 'settings'>('home')
+  // 'ranking' を追加（tabの取りうる値の一覧）
+  const [tab, setTab] = useState<'home' | 'calendar' | 'data' | 'title' | 'settings' | 'ranking'>('home')
   const [now, setNow] = useState(Date.now())
   const [showGoal, setShowGoal] = useState(false)
   const [goalInput, setGoalInput] = useState(String(goal))
@@ -77,7 +256,7 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
 
   const s = THEMES[themeKey]
 
-  // タイマー
+  // タイマー（5秒ごとにメッセージを切り替え）
   useEffect(() => {
     const t = setInterval(() => {
       setNow(Date.now())
@@ -448,7 +627,7 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
           </div>
         )}
 
-        {/* 称号 */}
+        {/* 称号一覧 */}
         {tab === 'title' && (
           <div>
             <div style={{ ...cardStyle, textAlign: 'center', padding: '2rem' }}>
@@ -468,9 +647,45 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
           </div>
         )}
 
+        {/* ランキング */}
+        {tab === 'ranking' && (
+          <RankingTab s={s} userId={userId} />
+        )}
+
         {/* 設定 */}
         {tab === 'settings' && (
           <div>
+            {/* ユーザー名設定（ランキング参加用） */}
+            <div style={{ ...cardStyle, border: `1px solid ${s.accent}44` }}>
+              <div style={{ fontSize: 9, color: s.accent, letterSpacing: 3, marginBottom: 12 }}>
+                // RANKING PROFILE
+              </div>
+              <div style={{ fontSize: 11, color: s.sub, marginBottom: 12, lineHeight: 1.6 }}>
+                ユーザー名を設定するとランキングに参加できます。<br />
+                ※ ログインが必要です。他のユーザーに公開されます。
+              </div>
+              <div style={{ fontSize: 10, color: s.sub, marginBottom: 6 }}>
+                ユーザー名（ランキング表示名）
+              </div>
+              <input
+                value={userName}
+                onChange={e => setUserName(e.target.value)}
+                placeholder="例: taro_fighter"
+                style={{
+                  width: '100%', padding: 10, background: s.bg2,
+                  border: `1px solid ${s.border}`, borderRadius: 6,
+                  color: s.text, fontFamily: 'inherit', fontSize: 13,
+                  boxSizing: 'border-box',
+                }}
+              />
+              {!userId && (
+                <div style={{ marginTop: 8, fontSize: 11, color: '#ff6688' }}>
+                  ※ ログインしていないと保存されません
+                </div>
+              )}
+            </div>
+
+            {/* テーマ選択 */}
             <div style={{ fontSize: 9, color: s.sub, letterSpacing: 4, marginBottom: 16 }}>// SELECT THEME</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
               {(Object.entries(THEMES) as [ThemeKey, Theme][]).map(([key, t]) => (
@@ -493,14 +708,15 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
         )}
       </div>
 
-      {/* ボトムナビ */}
+      {/* ボトムナビ（下部固定メニュー） */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: s.bg, borderTop: `1px solid ${s.border}`, display: 'flex' }}>
         {([
-          { key: 'home', label: 'HOME', icon: '⬡' },
-          { key: 'data', label: 'DATA', icon: '▤' },
-          { key: 'calendar', label: 'LOG', icon: '▦' },
-          { key: 'title', label: 'RANK', icon: '◈' },
-          { key: 'settings', label: 'SYS', icon: '⚙' },
+          { key: 'home',    label: 'HOME',    icon: '⬡' },
+          { key: 'data',    label: 'DATA',    icon: '▤' },
+          { key: 'calendar',label: 'LOG',     icon: '▦' },
+          { key: 'title',   label: 'TITLE',   icon: '◈' },
+          { key: 'ranking', label: 'RANK',    icon: '👑' },
+          { key: 'settings',label: 'SYS',     icon: '⚙' },
         ] as const).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             flex: 1, padding: '10px 0', background: 'none', border: 'none',
