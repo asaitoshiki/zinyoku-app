@@ -56,54 +56,221 @@ const DEFAULT_MESSAGES = [
 ]
 
 // ===================================================
-// ランキングタブのコンポーネント
-// s       = 現在のテーマの色設定
-// userId  = ログイン中のユーザーID（未ログインはnull）
+// ランキング用プロフィール設定モーダル
+// 初めてRANKタブを開いたときだけ表示される
+// モーダル = 画面全体を覆うポップアップのこと
 // ===================================================
-function RankingTab({ s, userId }: { s: Theme; userId: string | null }) {
-  // ranking = ランキングデータの配列（Supabaseから取得）
+function RankProfileModal({
+  s,
+  userId,
+  onSave,
+}: {
+  s: Theme
+  userId: string
+  onSave: (rankName: string, rankImage: string) => void
+}) {
+  const [rankName, setRankName] = useState('')
+  const [rankImage, setRankImage] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setRankImage(reader.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  const handleSave = async () => {
+    if (!rankName.trim()) { setError('名前を入力してください'); return }
+    setSaving(true)
+    setError('')
+
+    // Supabaseに保存（upsert = あれば更新、なければ挿入）
+    const { error: saveError } = await supabase
+      .from('profiles')
+      .upsert({
+        id: userId,
+        username: rankName.trim(),
+        rank_name: rankName.trim(),
+        rank_image: rankImage,
+      })
+
+    if (saveError) {
+      // エラーコード23505 = UNIQUE制約違反（重複している）
+      if (saveError.code === '23505') {
+        setError('その名前は既に使われています。別の名前を選んでください。')
+      } else {
+        setError('保存に失敗しました。もう一度お試しください。')
+      }
+      setSaving(false)
+      return
+    }
+
+    onSave(rankName.trim(), rankImage)
+  }
+
+  return (
+    // 画面全体を覆う半透明の黒背景（オーバーレイ）
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(0,0,0,0.85)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16,
+    }}>
+      <div style={{
+        background: s.card, border: `1px solid ${s.accent}`,
+        borderRadius: 20, padding: 24, width: '100%', maxWidth: 360,
+        fontFamily: "'Courier New', monospace",
+      }}>
+        {/* タイトル */}
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>👑</div>
+          <div style={{ fontSize: 13, color: s.accent, letterSpacing: 3, marginBottom: 4 }}>
+            RANKING PROFILE
+          </div>
+          <div style={{ fontSize: 11, color: s.sub, lineHeight: 1.6 }}>
+            ランキングに表示される<br />名前とアイコンを設定してください
+          </div>
+        </div>
+
+        {/* アイコン設定（タップして画像を選ぶ） */}
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div
+            onClick={() => fileRef.current?.click()}
+            style={{
+              width: 80, height: 80, borderRadius: '50%',
+              border: `2px dashed ${s.accent}88`,
+              margin: '0 auto 8px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', overflow: 'hidden',
+              background: s.bg2,
+            }}
+          >
+            {rankImage
+              ? <img src={rankImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <span style={{ fontSize: 32 }}>👤</span>
+            }
+          </div>
+          <div style={{ fontSize: 10, color: s.sub }}>
+            タップして画像を設定（任意）
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" onChange={handleImage} style={{ display: 'none' }} />
+        </div>
+
+        {/* 名前入力 */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: s.sub, letterSpacing: 2, marginBottom: 6 }}>
+            ランキング表示名 *
+          </div>
+          <input
+            value={rankName}
+            onChange={e => setRankName(e.target.value)}
+            placeholder="例: taro_fighter"
+            maxLength={20}
+            style={{
+              width: '100%', padding: 10,
+              background: s.bg2, border: `1px solid ${s.border}`,
+              borderRadius: 8, color: s.text,
+              fontFamily: 'inherit', fontSize: 14,
+              boxSizing: 'border-box',
+            }}
+          />
+          <div style={{ fontSize: 10, color: s.sub, marginTop: 4 }}>
+            ※ 他のユーザーに公開されます（最大20文字）
+          </div>
+        </div>
+
+        {/* エラーメッセージ */}
+        {error && (
+          <div style={{
+            fontSize: 11, color: '#ff6688', marginBottom: 12,
+            padding: '8px 12px', background: '#ff004411', borderRadius: 8,
+          }}>
+            {error}
+          </div>
+        )}
+
+        {/* 参加ボタン */}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            width: '100%', padding: 12,
+            background: 'transparent', border: `1px solid ${s.accent}`,
+            borderRadius: 8, color: s.accent,
+            cursor: saving ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit', fontSize: 12, letterSpacing: 2,
+          }}
+        >
+          {saving ? '[ SAVING... ]' : '[ ランキングに参加する ]'}
+        </button>
+
+        {/* スキップボタン */}
+        <button
+          onClick={() => onSave('', '')}
+          style={{
+            width: '100%', marginTop: 10, padding: 8,
+            background: 'none', border: 'none',
+            color: s.sub, cursor: 'pointer',
+            fontFamily: 'inherit', fontSize: 11,
+          }}
+        >
+          今はしない（ランキングに参加しない）
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ===================================================
+// ランキングタブ
+// ===================================================
+function RankingTab({
+  s,
+  userId,
+  rankName,
+  rankImage,
+  onEditProfile,
+}: {
+  s: Theme
+  userId: string | null
+  rankName: string
+  rankImage: string
+  onEditProfile: () => void
+}) {
   const [ranking, setRanking] = useState<any[]>([])
-  // loading = データを取得中かどうか
   const [loading, setLoading] = useState(true)
-  // myRank  = 自分の順位（数字）
   const [myRank, setMyRank] = useState<number | null>(null)
 
   useEffect(() => {
     const load = async () => {
-      // Supabaseのrankingビューから best_streak（最長記録）の降順（大きい順）で取得
       const { data } = await supabase
         .from('ranking')
         .select('*')
         .order('best_streak', { ascending: false })
-        .limit(100) // 上位100人まで表示
+        .limit(100)
 
       if (data) {
         setRanking(data)
-        // localStorageに保存されたusernameで自分を特定
-        const myUsername = localStorage.getItem('sz_username') || ''
-        if (myUsername) {
-          const myIdx = data.findIndex((r: any) => r.username === myUsername)
+        if (rankName) {
+          const myIdx = data.findIndex((r: any) => r.rank_name === rankName)
           if (myIdx !== -1) setMyRank(myIdx + 1)
         }
       }
       setLoading(false)
     }
     load()
-  }, [userId])
+  }, [rankName])
 
   const glowStyle = { textShadow: `0 0 10px ${s.accent}` }
   const cardStyle: React.CSSProperties = {
-    background: s.card,
-    border: `1px solid ${s.border}`,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    background: s.card, border: `1px solid ${s.border}`,
+    borderRadius: 16, padding: 16, marginBottom: 12,
   }
 
-  // localStorageから自分のusernameを取得（ランキングで自分を強調表示するため）
-  const myUsername = localStorage.getItem('sz_username') || ''
-
-  // メダル絵文字（1位=金、2位=銀、3位=銅）
   const medal = (rank: number) => {
     if (rank === 1) return '🥇'
     if (rank === 2) return '🥈'
@@ -119,7 +286,7 @@ function RankingTab({ s, userId }: { s: Theme; userId: string | null }) {
 
   return (
     <div>
-      {/* ヘッダーカード：ランキングの説明と自分の順位 */}
+      {/* ヘッダーカード */}
       <div style={{ ...cardStyle, textAlign: 'center' }}>
         <div style={{ fontSize: 9, color: s.sub, letterSpacing: 4, marginBottom: 8 }}>
           GLOBAL RANKING
@@ -127,19 +294,29 @@ function RankingTab({ s, userId }: { s: Theme; userId: string | null }) {
         <div style={{ fontSize: 11, color: s.sub }}>
           基準：最長連続記録 // {ranking.length} USERS
         </div>
-        {/* 自分の順位を表示（usernameがある場合のみ） */}
+
+        {/* 自分の順位 */}
         {myRank && (
           <div style={{ marginTop: 12, fontSize: 13, color: s.accent, ...glowStyle }}>
             あなたの順位：{myRank}位
           </div>
         )}
-        {/* ログイン済みだがusernameがない場合の案内 */}
-        {userId && !myUsername && (
-          <div style={{ marginTop: 12, fontSize: 11, color: '#ff6688' }}>
-            ※ ランキングに参加するにはSYS設定でユーザー名を設定してください
-          </div>
+
+        {/* プロフィール編集ボタン */}
+        {userId && (
+          <button
+            onClick={onEditProfile}
+            style={{
+              marginTop: 12, padding: '6px 16px',
+              background: 'transparent', border: `1px solid ${s.accent}88`,
+              borderRadius: 20, color: s.sub,
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 10, letterSpacing: 1,
+            }}
+          >
+            {rankName ? '✏ プロフィールを変更' : '👑 ランキングに参加する'}
+          </button>
         )}
-        {/* 未ログインの場合の案内 */}
+
         {!userId && (
           <div style={{ marginTop: 12, fontSize: 11, color: s.sub }}>
             ※ ランキングに参加するにはログインが必要です
@@ -156,56 +333,45 @@ function RankingTab({ s, userId }: { s: Theme; userId: string | null }) {
         <div style={cardStyle}>
           {ranking.map((r, i) => {
             const rank = i + 1
-            // 自分のエントリーかどうか（usernameで判定）
-            const isMe = myUsername !== '' && r.username === myUsername
+            const isMe = rankName !== '' && r.rank_name === rankName
             return (
               <div key={r.user_number} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
+                display: 'flex', alignItems: 'center', gap: 12,
                 padding: '10px 8px',
                 borderBottom: `1px solid ${s.border}`,
-                // 自分の行は背景色を変えて強調
                 background: isMe ? s.accent + '11' : 'transparent',
                 borderRadius: isMe ? 8 : 0,
               }}>
 
-                {/* 順位番号 or メダル絵文字 */}
+                {/* 順位番号 or メダル */}
                 <div style={{ width: 28, textAlign: 'center', fontSize: 14, flexShrink: 0 }}>
-                  {medal(rank) || (
-                    <span style={{ color: s.sub, fontSize: 11 }}>{rank}</span>
-                  )}
+                  {medal(rank) || <span style={{ color: s.sub, fontSize: 11 }}>{rank}</span>}
                 </div>
 
-                {/* キャラクター画像（設定している場合のみ表示） */}
-                {r.char_image && (
-                  <img
-                    src={r.char_image}
-                    style={{
-                      width: 32, height: 32, borderRadius: '50%',
-                      objectFit: 'cover', border: `1px solid ${s.border}`,
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
+                {/* ランキング用アイコン */}
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                  border: `1px solid ${s.border}`, overflow: 'hidden',
+                  background: s.bg2, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {r.rank_image
+                    ? <img src={r.rank_image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: 18 }}>👤</span>
+                  }
+                </div>
 
-                {/* ユーザー名と登録番号 */}
+                {/* 名前と登録番号 */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
                     fontSize: 13,
                     color: isMe ? s.accent : s.text,
                     fontWeight: isMe ? 700 : 400,
                     ...(isMe ? glowStyle : {}),
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis', // 長い名前は「...」で省略
-                    whiteSpace: 'nowrap',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
-                    {r.username}
-                    {isMe && (
-                      <span style={{ fontSize: 10, marginLeft: 6, color: s.accent }}>← YOU</span>
-                    )}
+                    {r.rank_name}
+                    {isMe && <span style={{ fontSize: 10, marginLeft: 6, color: s.accent }}>← YOU</span>}
                   </div>
-                  {/* 登録番号（No.1から順番に振られる） */}
                   <div style={{ fontSize: 9, color: s.sub, marginTop: 2 }}>
                     No.{r.user_number}
                   </div>
@@ -238,7 +404,6 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
   const [startDate, setStartDate] = useState(() => localStorage.getItem('sz_start') || new Date().toISOString())
   const [goal, setGoal] = useState(() => Number(localStorage.getItem('sz_goal') || 10))
   const [records, setRecords] = useState<Rec[]>(() => JSON.parse(localStorage.getItem('sz_records') || '[]'))
-  // 'ranking' を追加（tabの取りうる値の一覧）
   const [tab, setTab] = useState<'home' | 'calendar' | 'data' | 'title' | 'settings' | 'ranking'>('home')
   const [now, setNow] = useState(Date.now())
   const [showGoal, setShowGoal] = useState(false)
@@ -254,9 +419,26 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
   const [loaded, setLoaded] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // ランキング用プロフィール（サポートキャラとは別）
+  const [rankName, setRankName] = useState(() => localStorage.getItem('sz_rankname') || '')
+  const [rankImage, setRankImage] = useState(() => localStorage.getItem('sz_rankimage') || '')
+  // showRankModal = プロフィール設定モーダルを表示するかどうか
+  const [showRankModal, setShowRankModal] = useState(false)
+
   const s = THEMES[themeKey]
 
-  // タイマー（5秒ごとにメッセージを切り替え）
+  // RANKタブを開いたとき、未設定かつログイン済みなら初回モーダルを表示
+  // sz_rank_setup（localStorage）が 'done' でなければ初回とみなす
+  useEffect(() => {
+    if (tab === 'ranking' && userId) {
+      const alreadySetup = localStorage.getItem('sz_rank_setup')
+      if (!alreadySetup) {
+        setShowRankModal(true)
+      }
+    }
+  }, [tab, userId])
+
+  // タイマー
   useEffect(() => {
     const t = setInterval(() => {
       setNow(Date.now())
@@ -265,10 +447,7 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
     return () => clearInterval(t)
   }, [messages.length])
 
-  // テーマ保存
   useEffect(() => { localStorage.setItem('sz_theme', themeKey) }, [themeKey])
-
-  // localStorage保存（ゲスト・ログイン共通）
   useEffect(() => { localStorage.setItem('sz_start', startDate) }, [startDate])
   useEffect(() => { localStorage.setItem('sz_goal', String(goal)) }, [goal])
   useEffect(() => { localStorage.setItem('sz_records', JSON.stringify(records)) }, [records])
@@ -276,8 +455,10 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
   useEffect(() => { localStorage.setItem('sz_username', userName) }, [userName])
   useEffect(() => { localStorage.setItem('sz_charimage', charImage) }, [charImage])
   useEffect(() => { localStorage.setItem('sz_messages', JSON.stringify(messages)) }, [messages])
+  useEffect(() => { localStorage.setItem('sz_rankname', rankName) }, [rankName])
+  useEffect(() => { localStorage.setItem('sz_rankimage', rankImage) }, [rankImage])
 
-  // Supabaseからデータ読み込み（ログイン時のみ）
+  // Supabaseからデータ読み込み
   useEffect(() => {
     if (!userId) { setLoaded(true); return }
     const load = async () => {
@@ -293,6 +474,16 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
         if (data.username) setUserName(data.username)
         if (data.char_image) setCharImage(data.char_image)
         if (data.messages?.length) setMessages(data.messages)
+        // ランキング用プロフィールをDBから読み込む
+        if (data.rank_name) {
+          setRankName(data.rank_name)
+          localStorage.setItem('sz_rankname', data.rank_name)
+          localStorage.setItem('sz_rank_setup', 'done') // 設定済みフラグをセット
+        }
+        if (data.rank_image) {
+          setRankImage(data.rank_image)
+          localStorage.setItem('sz_rankimage', data.rank_image)
+        }
       }
       const { data: recs } = await supabase
         .from('records')
@@ -309,7 +500,7 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
     load()
   }, [userId])
 
-  // Supabaseにプロフィール保存（ログイン時のみ）
+  // Supabaseにプロフィール保存
   useEffect(() => {
     if (!loaded || !userId) return
     supabase.from('profiles').upsert({
@@ -322,6 +513,14 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
       messages,
     }).then(() => {})
   }, [startDate, goal, charName, userName, charImage, messages, loaded, userId])
+
+  // モーダルで「参加する」を押したときの処理
+  const handleRankSave = (name: string, image: string) => {
+    setRankName(name)
+    setRankImage(image)
+    localStorage.setItem('sz_rank_setup', 'done') // 次回からモーダルを出さない
+    setShowRankModal(false)
+  }
 
   const elapsed = now - new Date(startDate).getTime()
   const days = Math.floor(elapsed / 86400000)
@@ -399,6 +598,15 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
   return (
     <div style={{ background: s.bg, minHeight: '100vh', color: s.text, fontFamily: "'Courier New', monospace", paddingBottom: 80 }}>
 
+      {/* ランキングプロフィール設定モーダル（初回のみ表示） */}
+      {showRankModal && userId && (
+        <RankProfileModal
+          s={s}
+          userId={userId}
+          onSave={handleRankSave}
+        />
+      )}
+
       {/* ヘッダー */}
       <div style={{ borderBottom: `1px solid ${s.border}`, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 11, color: s.accent, letterSpacing: 3 }}>ABSTINENCE.SYS</div>
@@ -420,7 +628,6 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
         {/* ホーム */}
         {tab === 'home' && (
           <div>
-            {/* キャラクターカード */}
             <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
               <div onClick={() => setEditingChar(true)} style={{
                 width: 64, height: 64, borderRadius: 12, overflow: 'hidden', flexShrink: 0,
@@ -444,7 +651,6 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
               </div>
             </div>
 
-            {/* キャラ設定 */}
             {editingChar && (
               <div style={{ ...cardStyle, border: `1px solid ${s.accent}` }}>
                 <div style={{ fontSize: 10, color: s.accent, letterSpacing: 3, marginBottom: 12 }}>// CHAR CONFIG</div>
@@ -489,7 +695,6 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
               </div>
             )}
 
-            {/* カウンター */}
             <div style={{ ...cardStyle, textAlign: 'center', padding: '1.5rem 1rem' }}>
               <div style={{ fontSize: 11, color: s.sub, letterSpacing: 4, marginBottom: 12 }}>DAYS // ELAPSED</div>
               <div style={{ fontSize: 88, fontWeight: 700, lineHeight: 1, color: s.accent, ...glowStyle }}>{String(days).padStart(2, '0')}</div>
@@ -505,14 +710,12 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
               </div>
             </div>
 
-            {/* 称号 */}
             <div style={{ ...cardStyle, textAlign: 'center' }}>
               <div style={{ fontSize: 9, color: s.sub, letterSpacing: 3, marginBottom: 4 }}>CURRENT TITLE</div>
               <div style={{ fontSize: 22, color: s.accent2, fontWeight: 700 }}>{currentTitle.name}</div>
               {nextTitle && <div style={{ fontSize: 11, color: s.sub, marginTop: 4 }}>→ 「{nextTitle.name}」まであと {nextTitle.days - days} 日</div>}
             </div>
 
-            {/* プログレスバー */}
             <div style={cardStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: s.sub, marginBottom: 8 }}>
                 <span>TARGET // {goal} DAYS</span>
@@ -526,7 +729,6 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
               </div>
             </div>
 
-            {/* ボタン */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
               <CyberButton icon="⏻" label="RESET" onClick={reset} />
               <CyberButton icon="◎" label="TARGET" onClick={() => setShowGoal(v => !v)} />
@@ -649,43 +851,18 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
 
         {/* ランキング */}
         {tab === 'ranking' && (
-          <RankingTab s={s} userId={userId} />
+          <RankingTab
+            s={s}
+            userId={userId}
+            rankName={rankName}
+            rankImage={rankImage}
+            onEditProfile={() => setShowRankModal(true)}
+          />
         )}
 
         {/* 設定 */}
         {tab === 'settings' && (
           <div>
-            {/* ユーザー名設定（ランキング参加用） */}
-            <div style={{ ...cardStyle, border: `1px solid ${s.accent}44` }}>
-              <div style={{ fontSize: 9, color: s.accent, letterSpacing: 3, marginBottom: 12 }}>
-                // RANKING PROFILE
-              </div>
-              <div style={{ fontSize: 11, color: s.sub, marginBottom: 12, lineHeight: 1.6 }}>
-                ユーザー名を設定するとランキングに参加できます。<br />
-                ※ ログインが必要です。他のユーザーに公開されます。
-              </div>
-              <div style={{ fontSize: 10, color: s.sub, marginBottom: 6 }}>
-                ユーザー名（ランキング表示名）
-              </div>
-              <input
-                value={userName}
-                onChange={e => setUserName(e.target.value)}
-                placeholder="例: taro_fighter"
-                style={{
-                  width: '100%', padding: 10, background: s.bg2,
-                  border: `1px solid ${s.border}`, borderRadius: 6,
-                  color: s.text, fontFamily: 'inherit', fontSize: 13,
-                  boxSizing: 'border-box',
-                }}
-              />
-              {!userId && (
-                <div style={{ marginTop: 8, fontSize: 11, color: '#ff6688' }}>
-                  ※ ログインしていないと保存されません
-                </div>
-              )}
-            </div>
-
-            {/* テーマ選択 */}
             <div style={{ fontSize: 9, color: s.sub, letterSpacing: 4, marginBottom: 16 }}>// SELECT THEME</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
               {(Object.entries(THEMES) as [ThemeKey, Theme][]).map(([key, t]) => (
@@ -708,15 +885,15 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
         )}
       </div>
 
-      {/* ボトムナビ（下部固定メニュー） */}
+      {/* ボトムナビ */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: s.bg, borderTop: `1px solid ${s.border}`, display: 'flex' }}>
         {([
-          { key: 'home',    label: 'HOME',    icon: '⬡' },
-          { key: 'data',    label: 'DATA',    icon: '▤' },
-          { key: 'calendar',label: 'LOG',     icon: '▦' },
-          { key: 'title',   label: 'TITLE',   icon: '◈' },
-          { key: 'ranking', label: 'RANK',    icon: '👑' },
-          { key: 'settings',label: 'SYS',     icon: '⚙' },
+          { key: 'home',     label: 'HOME',  icon: '⬡' },
+          { key: 'data',     label: 'DATA',  icon: '▤' },
+          { key: 'calendar', label: 'LOG',   icon: '▦' },
+          { key: 'title',    label: 'TITLE', icon: '◈' },
+          { key: 'ranking',  label: 'RANK',  icon: '👑' },
+          { key: 'settings', label: 'SYS',   icon: '⚙' },
         ] as const).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             flex: 1, padding: '10px 0', background: 'none', border: 'none',
