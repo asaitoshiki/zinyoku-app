@@ -232,7 +232,6 @@ function RankingTab({
   s,
   userId,
   rankName,
-  rankImage,
   onEditProfile,
 }: {
   s: Theme
@@ -730,7 +729,7 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              <CyberButton icon="⏻" label="RESET" onClick={reset} />
+              <CyberButton icon="↺" label="RESET" onClick={reset} />
               <CyberButton icon="◎" label="TARGET" onClick={() => setShowGoal(v => !v)} />
               <CyberButton icon="↗" label="SHARE" onClick={() => navigator.share?.({ text: `禁欲${days}日達成！` })} />
             </div>
