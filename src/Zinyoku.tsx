@@ -226,6 +226,116 @@ function RankProfileModal({
 }
 
 // ===================================================
+// チュートリアルモーダル
+// 初回起動時に表示。SYSタブからも開ける。
+// ===================================================
+const TUTORIAL_PAGES = [
+  {
+    icon: '◈',
+    title: 'ABSTINENCE.SYS へようこそ',
+    body: '禁欲の継続日数をリアルタイムで記録するアプリです。\nあなたの意志を数字で可視化し、成長を実感しましょう。',
+  },
+  {
+    icon: '⬡',
+    title: 'HOME — メイン画面',
+    body: '現在の継続日数・時間・分・秒をリアルタイムで表示します。\n\n【 ↺ RESET 】\n失敗したときに押してください。記録に残り、DATAタブで確認できます。\n\n【 ◎ TARGET 】\n目標日数を設定できます。\n\n【 ↗ SHARE 】\n達成日数をシェアできます。',
+  },
+  {
+    icon: '▤',
+    title: 'DATA — 統計',
+    body: '【 AVG DURATION 】\n過去の記録の平均継続日数です。リセットするたびに更新されます。\n\n【 TOP 5 】\n過去の記録の中で日数が長かった上位5件です。\n\n【 ALL RECORDS 】\nリセットするたびに追加される全記録の一覧です。',
+  },
+  {
+    icon: '▦',
+    title: 'LOG — カレンダー',
+    body: '日ごとの状況をカレンダーで確認できます。\n\n■ 成功した日（アクセントカラー）\n■ 失敗した日（赤）\n■ 今日（別カラー）',
+  },
+  {
+    icon: '◈',
+    title: 'TITLE — 称号システム',
+    body: '継続日数に応じて称号が解放されます。\n全20段階あり、長く続けるほど上位の称号を獲得できます。\n\n例：\n0日 → 本能の奴隷\n7日 → 一週間の侍\n30日 → 月の修行僧\n365日 → 一年の聖人',
+  },
+  {
+    icon: '👑',
+    title: 'RANK — グローバルランキング',
+    body: 'ログインユーザーが参加できる世界ランキングです。\n「最長連続記録」で順位が決まります。\n\nアカウント登録してRANKタブを開くと、プロフィール設定画面が表示されます。',
+  },
+  {
+    icon: '⚙',
+    title: 'SYS — 設定',
+    body: 'アプリのテーマを9種類から選択できます。\n\nサイバー / ダーク / ライト / ブルー / パープル / グリーン / 宇宙 / ジャングル / 古着\n\nこのチュートリアルはSYSタブからいつでも見直せます。',
+  },
+]
+
+function TutorialModal({ s, onClose }: { s: Theme; onClose: () => void }) {
+  const [page, setPage] = useState(0)
+  const total = TUTORIAL_PAGES.length
+  const p = TUTORIAL_PAGES[page]
+  const isLast = page === total - 1
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(0,0,0,0.9)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16,
+    }}>
+      <div style={{
+        background: s.card, border: `1px solid ${s.accent}`,
+        borderRadius: 20, padding: 28, width: '100%', maxWidth: 360,
+        fontFamily: "'Courier New', monospace",
+      }}>
+        {/* ページインジケーター（何ページ目かを点で表示） */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
+          {TUTORIAL_PAGES.map((_, i) => (
+            <div key={i} style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: i === page ? s.accent : s.border,
+              transition: 'background 0.3s',
+            }} />
+          ))}
+        </div>
+
+        {/* アイコン */}
+        <div style={{ textAlign: 'center', fontSize: 32, marginBottom: 12, color: s.accent, filter: `drop-shadow(0 0 8px ${s.accent})` }}>
+          {p.icon}
+        </div>
+
+        {/* タイトル */}
+        <div style={{ textAlign: 'center', fontSize: 13, color: s.accent, letterSpacing: 2, marginBottom: 16 }}>
+          {p.title}
+        </div>
+
+        {/* 本文（\n で改行） */}
+        <div style={{ fontSize: 12, color: s.sub, lineHeight: 1.8, whiteSpace: 'pre-line', minHeight: 120 }}>
+          {p.body}
+        </div>
+
+        {/* ボタン */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
+          {page > 0 && (
+            <button onClick={() => setPage(p => p - 1)} style={{
+              flex: 1, padding: 12, background: 'transparent',
+              border: `1px solid ${s.border}`, borderRadius: 8,
+              color: s.sub, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, letterSpacing: 1,
+            }}>
+              ← BACK
+            </button>
+          )}
+          <button onClick={isLast ? onClose : () => setPage(p => p + 1)} style={{
+            flex: 2, padding: 12, background: 'transparent',
+            border: `1px solid ${s.accent}`, borderRadius: 8,
+            color: s.accent, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, letterSpacing: 2,
+          }}>
+            {isLast ? '[ はじめる ]' : 'NEXT →'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===================================================
 // ランキングタブ
 // ===================================================
 function RankingTab({
@@ -418,6 +528,14 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
   const [loaded, setLoaded] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // チュートリアル：初回起動時のみ表示（sz_tutorial_done がなければ初回とみなす）
+  const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem('sz_tutorial_done'))
+
+  const closeTutorial = () => {
+    localStorage.setItem('sz_tutorial_done', '1')
+    setShowTutorial(false)
+  }
+
   // ランキング用プロフィール（サポートキャラとは別）
   const [rankName, setRankName] = useState(() => localStorage.getItem('sz_rankname') || '')
   const [rankImage, setRankImage] = useState(() => localStorage.getItem('sz_rankimage') || '')
@@ -596,6 +714,9 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
 
   return (
     <div style={{ background: s.bg, minHeight: '100vh', color: s.text, fontFamily: "'Courier New', monospace", paddingBottom: 80 }}>
+
+      {/* チュートリアルモーダル（初回のみ表示。SYSタブからも開ける） */}
+      {showTutorial && <TutorialModal s={s} onClose={closeTutorial} />}
 
       {/* ランキングプロフィール設定モーダル（初回のみ表示） */}
       {showRankModal && userId && (
@@ -862,6 +983,16 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
         {/* 設定 */}
         {tab === 'settings' && (
           <div>
+            {/* チュートリアルボタン */}
+            <button onClick={() => setShowTutorial(true)} style={{
+              width: '100%', marginBottom: 20, padding: '14px 0',
+              background: 'transparent', border: `1px solid ${s.accent}88`,
+              borderRadius: 10, color: s.accent, cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 11, letterSpacing: 2,
+            }}>
+              ◈ チュートリアルを見る
+            </button>
+
             <div style={{ fontSize: 9, color: s.sub, letterSpacing: 4, marginBottom: 16 }}>// SELECT THEME</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
               {(Object.entries(THEMES) as [ThemeKey, Theme][]).map(([key, t]) => (
