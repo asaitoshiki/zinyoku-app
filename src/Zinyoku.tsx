@@ -284,7 +284,15 @@ function TutorialModal({ s, onClose }: { s: Theme; onClose: () => void }) {
         background: s.card, border: `1px solid ${s.accent}`,
         borderRadius: 20, padding: 28, width: '100%', maxWidth: 360,
         fontFamily: "'Courier New', monospace",
+        position: 'relative',
       }}>
+        {/* バツボタン（途中でも閉じられる） */}
+        <button onClick={onClose} style={{
+          position: 'absolute', top: 14, right: 14,
+          background: 'none', border: 'none', color: s.sub,
+          cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 4,
+        }}>✕</button>
+
         {/* ページインジケーター（何ページ目かを点で表示） */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
           {TUTORIAL_PAGES.map((_, i) => (
@@ -993,23 +1001,48 @@ export default function Zinyoku({ userId, onLoginRequest }: { userId: string | n
               ◈ チュートリアルを見る
             </button>
 
+            {/* 無料テーマ */}
             <div style={{ fontSize: 9, color: s.sub, letterSpacing: 4, marginBottom: 16 }}>// SELECT THEME</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-              {(Object.entries(THEMES) as [ThemeKey, Theme][]).map(([key, t]) => (
-                <button key={key} onClick={() => setThemeKey(key)} style={{
-                  background: t.bg, border: `1px solid ${themeKey === key ? t.accent : t.border}`,
-                  borderRadius: 10, padding: 14, cursor: 'pointer', textAlign: 'left',
-                  boxShadow: themeKey === key ? `0 0 12px ${t.accent}66` : 'none',
-                }}>
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                    {[t.accent, t.accent2, t.sub, t.bg2].map((c, i) => (
-                      <div key={i} style={{ width: 12, height: 12, borderRadius: 2, background: c }} />
-                    ))}
+              {(Object.entries(THEMES) as [ThemeKey, Theme][])
+                .filter(([key]) => !(['space', 'vintage'] as ThemeKey[]).includes(key))
+                .map(([key, t]) => (
+                  <button key={key} onClick={() => setThemeKey(key)} style={{
+                    background: t.bg, border: `1px solid ${themeKey === key ? t.accent : t.border}`,
+                    borderRadius: 10, padding: 14, cursor: 'pointer', textAlign: 'left',
+                    boxShadow: themeKey === key ? `0 0 12px ${t.accent}66` : 'none',
+                  }}>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                      {[t.accent, t.accent2, t.sub, t.bg2].map((c, i) => (
+                        <div key={i} style={{ width: 12, height: 12, borderRadius: 2, background: c }} />
+                      ))}
+                    </div>
+                    <div style={{ color: t.text, fontSize: 12, fontFamily: "'Courier New', monospace" }}>{t.name}</div>
+                    {themeKey === key && <div style={{ color: t.accent, fontSize: 9, marginTop: 4, letterSpacing: 2 }}>ACTIVE</div>}
+                  </button>
+                ))}
+            </div>
+
+            {/* 有料テーマ（近日公開） */}
+            <div style={{ fontSize: 9, color: s.sub, letterSpacing: 4, margin: '20px 0 12px' }}>// PREMIUM THEMES</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+              {(Object.entries(THEMES) as [ThemeKey, Theme][])
+                .filter(([key]) => (['space', 'vintage'] as ThemeKey[]).includes(key))
+                .map(([key, t]) => (
+                  <div key={key} style={{
+                    background: t.bg, border: `1px solid ${t.border}`,
+                    borderRadius: 10, padding: 14, textAlign: 'left',
+                    opacity: 0.5, position: 'relative', overflow: 'hidden',
+                  }}>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                      {[t.accent, t.accent2, t.sub, t.bg2].map((c, i) => (
+                        <div key={i} style={{ width: 12, height: 12, borderRadius: 2, background: c }} />
+                      ))}
+                    </div>
+                    <div style={{ color: t.text, fontSize: 12, fontFamily: "'Courier New', monospace" }}>{t.name}</div>
+                    <div style={{ color: t.accent, fontSize: 9, marginTop: 4, letterSpacing: 1 }}>🔒 COMING SOON</div>
                   </div>
-                  <div style={{ color: t.text, fontSize: 12, fontFamily: "'Courier New', monospace" }}>{t.name}</div>
-                  {themeKey === key && <div style={{ color: t.accent, fontSize: 9, marginTop: 4, letterSpacing: 2 }}>ACTIVE</div>}
-                </button>
-              ))}
+                ))}
             </div>
           </div>
         )}
